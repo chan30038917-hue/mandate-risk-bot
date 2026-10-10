@@ -1,16 +1,18 @@
 {
   "name": "mandate-risk-bot",
   "version": "1.0.0",
-  "description": "Bot de Discord que monitorea el riesgo de liquidacion en Aave V3 y Curvance en Monad",
+  "description": "API y bot de Discord para monitoreo de riesgo en Monad",
   "type": "module",
   "scripts": {
-    "start": "tsx -r dotenv/config src/monitor.ts"
+    "start": "tsx -r dotenv/config src/api.ts",
+    "bot": "tsx -r dotenv/config src/monitor.ts"
   },
   "engines": {
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "@x402/evm": "^2.22.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
     "axios": "^1.13.2",
     "better-sqlite3": "^13.0.3",
     "discord.js": "^14.16.3",
@@ -19,6 +21,8 @@
     "viem": "^2.21.0"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
     "@types/better-sqlite3": "^7.6.11",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
