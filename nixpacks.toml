@@ -1,2 +1,2 @@
 [phases.setup]
-aptPkgs = ["python3", "gnumake", "gcc"]
+nixPkgs = ["python311", "gnumake", "gcc"]
