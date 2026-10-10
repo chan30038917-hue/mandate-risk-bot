@@ -1,28 +1,39 @@
 import "dotenv/config";
-import { checkHealthFactor } from "./libs/aave";
-import { checkCurvanceHealth } from "./libs/curvance";
-import { WALLETS } from "./wallets";
+import { getHealthFactor } from "./libs/aave";
+import { getAllUsersWithWallets } from "./db";
+import { startDiscordBot, sendDMToUser } from "./discord-bot";
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const alerted = new Set<string>();
 
-async function checkAllWallets(): Promise<void> {
+async function checkAllWallets() {
+  const users = getAllUsersWithWallets();
   const timestamp = new Date().toISOString();
-  console.log(`\n[${timestamp}] Revisando ${WALLETS.length} wallet(s)...`);
+  console.log(`\n[${timestamp}] Revisando ${users.length} wallet(s)...`);
 
-  for (const wallet of WALLETS) {
-    await checkHealthFactor(wallet);
-    await checkCurvanceHealth(wallet);
+  for (const user of users) {
+    const hf = await getHealthFactor(user.wallet);
+    const key = `${user.discordId}:${user.wallet}`;
+
+    if (hf < 1.5 && !alerted.has(key)) {
+      const riskLevel = hf < 1.1 ? "CRITICO" : "PRECAUCION";
+      await sendDMToUser(
+        user.discordId,
+        `⚠️ **Alerta de riesgo**\n\nWallet: \`${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}\`\nHealth Factor: **${hf.toFixed(4)}** (${riskLevel})\n\nConsidera anadir margen.`
+      );
+      alerted.add(key);
+    }
+
+    if (hf > 1.8) {
+      alerted.delete(key);
+    }
   }
-
-  console.log(`[${timestamp}] Check completado. Proxima revision en ${CHECK_INTERVAL_MS / 1000 / 60} min.`);
+  console.log(`[${timestamp}] Check completado.`);
 }
 
-async function main(): Promise<void> {
+async function main() {
   console.log("=== Mandate Risk Monitor iniciado ===");
-  console.log(`Wallets monitoreadas: ${WALLETS.length}`);
-  console.log(`Intervalo: ${CHECK_INTERVAL_MS / 1000 / 60} minutos`);
-  console.log(`Plan de pago: X402_PAY_TO configurado para ${process.env.X402_PAY_TO || "no configurado"}`);
-
+  await startDiscordBot();
   await checkAllWallets();
   setInterval(checkAllWallets, CHECK_INTERVAL_MS);
 }
