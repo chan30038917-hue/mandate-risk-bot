@@ -1,6 +1,12 @@
 import Database from "better-sqlite3";
+import { mkdirSync } from "fs";
+import { dirname } from "path";
 
-const db = new Database("./data/bot.db");
+// Crear la carpeta data/ si no existe
+const DB_PATH = "./data/bot.db";
+mkdirSync(dirname(DB_PATH), { recursive: true });
+
+const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
 db.exec(`
