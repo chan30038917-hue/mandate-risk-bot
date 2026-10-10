@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { getHealthFactor } from "./libs/aave";
+import { getHealthFactorNumber } from "./libs/aave";
 import { getAllUsersWithWallets } from "./db";
 import { startDiscordBot, sendDMToUser } from "./discord-bot";
 
@@ -12,7 +12,7 @@ async function checkAllWallets() {
   console.log(`\n[${timestamp}] Revisando ${users.length} wallet(s)...`);
 
   for (const user of users) {
-    const hf = await getHealthFactor(user.wallet);
+    const hf = await getHealthFactorNumber(user.wallet);
     const key = `${user.discordId}:${user.wallet}`;
 
     if (hf < 1.5 && !alerted.has(key)) {

@@ -1,5 +1,5 @@
 import { Client, GatewayIntentBits, Events, REST, Routes, SlashCommandBuilder } from "discord.js";
-import { getHealthFactor } from "./libs/aave";
+import { getHealthFactorNumber } from "./libs/aave";
 import { addWalletToUser, getUserWallets } from "./db";
 
 const DISCORD_TOKEN = process.env.DISCORD_TOKEN || "";
@@ -24,7 +24,7 @@ const commands = [
 export async function startDiscordBot() {
   discordClient.once(Events.ClientReady, async (c) => {
     console.log(`Bot de Discord listo: ${c.user.tag}`);
-    
+
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
     try {
       await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
@@ -39,16 +39,19 @@ export async function startDiscordBot() {
 
     if (interaction.commandName === "monitor") {
       const wallet = interaction.options.getString("wallet")!;
-      
+
       if (!wallet.startsWith("0x") || wallet.length !== 42) {
         await interaction.reply({ content: "Direccion invalida. Debe empezar con 0x y tener 42 caracteres.", ephemeral: true });
         return;
       }
 
       addWalletToUser(interaction.user.id, wallet);
-      await interaction.reply({ 
-        content: `Wallet registrada: \`${wallet.slice(0, 6)}...${wallet.slice(-4)}\`\n\nRecibiras alertas por DM cuando el health factor baje de 1.5.`,
-        ephemeral: true 
+      const hf = await getHealthFactorNumber(wallet);
+      const hfText = hf > 100 ? "Sin deuda" : hf.toFixed(4);
+
+      await interaction.reply({
+        content: `Wallet registrada: \`${wallet.slice(0, 6)}...${wallet.slice(-4)}\`\nHealth Factor actual: **${hfText}**\n\nRecibiras alertas por DM cuando el health factor baje de 1.5.`,
+        ephemeral: true
       });
     }
 

@@ -14,26 +14,50 @@ const pool = new ethers.Contract(AAVE_POOL, AAVE_POOL_ABI, provider);
 const DANGER_THRESHOLD = ethers.parseUnits("1.5", 18);
 const CRITICAL_THRESHOLD = ethers.parseUnits("1.1", 18);
 
-export async function checkHealthFactor(userAddress: string): Promise<void> {
+// Nueva funcion: devuelve solo el numero del health factor
+export async function getHealthFactorNumber(userAddress: string): Promise<number> {
   try {
     const data = await pool.getUserAccountData(userAddress);
     const healthFactor = data[5];
 
     if (healthFactor > ethers.parseUnits("100", 18)) {
+      return 999; // Sin deuda
+    }
+
+    return parseFloat(ethers.formatUnits(healthFactor, 18));
+  } catch (error) {
+    console.error(`Error consultando ${userAddress}:`, error);
+    return 999;
+  }
+}
+
+// Funcion original: envia alerta a Discord si hay riesgo
+export async function checkHealthFactor(userAddress: string): Promise<void> {
+  try {
+    const healthFactor = await pool.getUserAccountData(userAddress);
+    const hf = healthFactor[5];
+
+    if (hf > ethers.parseUnits("100", 18)) {
       console.log(`[${userAddress}] Sin deuda activa`);
       return;
     }
 
-    const hfFormatted = ethers.formatUnits(healthFactor, 18);
+    const hfFormatted = ethers.formatUnits(hf, 18);
     console.log(`[${userAddress}] Health Factor: ${hfFormatted}`);
 
-    if (healthFactor < CRITICAL_THRESHOLD) {
+    if (hf < CRITICAL_THRESHOLD) {
       await sendDiscordAlert(
-        `🚨 **CRÍTICO** 🚨\n\nWallet: \`${userAddress}\`\nHealth Factor: **${hfFormatted}**\nAcción requerida: Añade colateral o cierra posición AHORA.`
+        `🚨 **CRÍTICO** 🚨\n\n` +
+        `Wallet: \`${userAddress}\`\n` +
+        `Health Factor: **${hfFormatted}**\n` +
+        `Acción requerida: Añade colateral o cierra posición AHORA.`
       );
-    } else if (healthFactor < DANGER_THRESHOLD) {
+    } else if (hf < DANGER_THRESHOLD) {
       await sendDiscordAlert(
-        `⚠️ **Alerta de riesgo**\n\nWallet: \`${userAddress}\`\nHealth Factor: **${hfFormatted}**\nConsidera añadir margen.`
+        `⚠️ **Alerta de riesgo**\n\n` +
+        `Wallet: \`${userAddress}\`\n` +
+        `Health Factor: **${hfFormatted}**\n` +
+        `Considera añadir margen.`
       );
     }
   } catch (error) {
