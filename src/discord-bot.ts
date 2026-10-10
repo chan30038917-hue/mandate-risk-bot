@@ -27,7 +27,8 @@ export async function startDiscordBot() {
 
     const rest = new REST({ version: "10" }).setToken(DISCORD_TOKEN);
     try {
-      await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+      const GUILD_ID = "1558275136321232918";
+await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
       console.log("Comandos slash registrados");
     } catch (error) {
       console.error("Error registrando comandos:", error);
