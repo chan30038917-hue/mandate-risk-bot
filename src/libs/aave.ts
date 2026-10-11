@@ -1,66 +1,63 @@
-import { ethers } from "ethers";
-import { sendDiscordAlert } from "./discord";
+// src/libs/aave.ts
+import { JsonRpcProvider, Contract } from 'ethers';
 
-const AAVE_POOL = "0x69a5f9ad4f96ebf0a0c792dd42a01cc5c0102fef";
-const RPC_URL = "https://rpc.monad.xyz";
-
+const AAVE_POOL_ADDRESS = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
 const AAVE_POOL_ABI = [
-  "function getUserAccountData(address user) external view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)",
+  'function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)',
 ];
 
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-const pool = new ethers.Contract(AAVE_POOL, AAVE_POOL_ABI, provider);
-
-const DANGER_THRESHOLD = ethers.parseUnits("1.5", 18);
-const CRITICAL_THRESHOLD = ethers.parseUnits("1.1", 18);
-
-// Nueva funcion: devuelve solo el numero del health factor
-export async function getHealthFactorNumber(userAddress: string): Promise<number> {
-  try {
-    const data = await pool.getUserAccountData(userAddress);
-    const healthFactor = data[5];
-
-    if (healthFactor > ethers.parseUnits("100", 18)) {
-      return 999; // Sin deuda
-    }
-
-    return parseFloat(ethers.formatUnits(healthFactor, 18));
-  } catch (error) {
-    console.error(`Error consultando ${userAddress}:`, error);
-    return 999;
-  }
+export interface AavePosition {
+  hasDebt: boolean;
+  healthFactor?: number | null;
+  totalDebtUsd?: number;
+  error?: string;
 }
 
-// Funcion original: envia alerta a Discord si hay riesgo
-export async function checkHealthFactor(userAddress: string): Promise<void> {
+export async function checkAavePosition(
+  accountAddress: string,
+  provider?: JsonRpcProvider
+): Promise<AavePosition> {
   try {
-    const healthFactor = await pool.getUserAccountData(userAddress);
-    const hf = healthFactor[5];
+    const rpcProvider = provider || new JsonRpcProvider(
+      process.env.AAVE_RPC_URL || 'https://eth.llamarpc.com'
+    );
 
-    if (hf > ethers.parseUnits("100", 18)) {
-      console.log(`[${userAddress}] Sin deuda activa`);
-      return;
+    const pool = new Contract(AAVE_POOL_ADDRESS, AAVE_POOL_ABI, rpcProvider);
+    const data = await pool.getUserAccountData(accountAddress);
+
+    const totalDebtBase = BigInt(data[1]);
+    const healthFactorRaw = BigInt(data[5]);
+
+    if (totalDebtBase === 0n) {
+      return { hasDebt: false };
     }
 
-    const hfFormatted = ethers.formatUnits(hf, 18);
-    console.log(`[${userAddress}] Health Factor: ${hfFormatted}`);
+    const healthFactor = healthFactorRaw === BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
+      ? null
+      : Number(healthFactorRaw) / 1e18;
 
-    if (hf < CRITICAL_THRESHOLD) {
-      await sendDiscordAlert(
-        `🚨 **CRÍTICO** 🚨\n\n` +
-        `Wallet: \`${userAddress}\`\n` +
-        `Health Factor: **${hfFormatted}**\n` +
-        `Acción requerida: Añade colateral o cierra posición AHORA.`
-      );
-    } else if (hf < DANGER_THRESHOLD) {
-      await sendDiscordAlert(
-        `⚠️ **Alerta de riesgo**\n\n` +
-        `Wallet: \`${userAddress}\`\n` +
-        `Health Factor: **${hfFormatted}**\n` +
-        `Considera añadir margen.`
-      );
-    }
-  } catch (error) {
-    console.error(`Error consultando ${userAddress}:`, error);
+    return {
+      hasDebt: true,
+      healthFactor,
+      totalDebtUsd: Number(totalDebtBase) / 1e8,
+    };
+  } catch (error: any) {
+    return {
+      hasDebt: false,
+      error: error.message || 'Error desconocido en Aave',
+    };
   }
+}
+// ===== Compatibilidad con monitor.ts, api.ts y discord-bot.ts =====
+// Esta funcion devuelve solo el numero de health factor (o Infinity si no hay deuda)
+export async function getHealthFactorNumber(accountAddress: string): Promise<number> {
+  const result = await checkAavePosition(accountAddress);
+  if (result.error) {
+    console.error(`[Aave] Error obteniendo HF de ${accountAddress}: ${result.error}`);
+    return Infinity;
+  }
+  if (!result.hasDebt || result.healthFactor === null || result.healthFactor === undefined) {
+    return Infinity;
+  }
+  return result.healthFactor;
 }
