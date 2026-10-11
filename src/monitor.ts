@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { getHealthFactorNumber } from "./libs/aave";
-import { getAllUsersWithWallets, addWalletToUser, getUserWallets } from "./db";
+import { getAllUsersWithWallets, addWalletToUser, getUserWallets, removeWallet } from "./db";
 import { startDiscordBot, sendDMToUser } from "./discord-bot";
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -41,6 +41,17 @@ app.post("/api/register", (req, res) => {
 app.get("/api/wallets/:discordId", (req, res) => {
   const wallets = getUserWallets(req.params.discordId);
   res.json({ wallets });
+});
+
+app.delete("/api/wallets", (req, res) => {
+  const { discordId, wallet } = req.body;
+
+  if (!discordId || !wallet) {
+    return res.status(400).json({ error: "discordId y wallet son requeridos" });
+  }
+
+  removeWallet(discordId, wallet);
+  res.json({ success: true, message: "Wallet eliminada" });
 });
 
 app.get("/api/health-factor/:wallet", async (req, res) => {
