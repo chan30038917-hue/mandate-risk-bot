@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { getHealthFactorNumber } from "./libs/aave";
+import { getCurvanceHealth } from "./libs/curvance";
 import { getAllUsersWithWallets, addWalletToUser, getUserWallets, removeWallet } from "./db";
 import { startDiscordBot, sendDMToUser } from "./discord-bot";
 
@@ -54,9 +55,47 @@ app.delete("/api/wallets", (req, res) => {
   res.json({ success: true, message: "Wallet eliminada" });
 });
 
+// Endpoint que consulta Aave Y Curvance
 app.get("/api/health-factor/:wallet", async (req, res) => {
-  const hf = await getHealthFactorNumber(req.params.wallet);
-  res.json({ wallet: req.params.wallet, healthFactor: hf });
+  const wallet = req.params.wallet;
+
+  try {
+    // 1. Leer Aave
+    const aaveHF = await getHealthFactorNumber(wallet);
+
+    // 2. Leer Curvance
+    const curvancePositions = await getCurvanceHealth(wallet);
+
+    // 3. Determinar el peor caso
+    let worstHF = 999;
+    let protocol = "none";
+    let market = "";
+
+    if (aaveHF < 100) {
+      worstHF = aaveHF;
+      protocol = "Aave V3";
+    }
+
+    for (const pos of curvancePositions) {
+      if (pos.lFactor < worstHF) {
+        worstHF = pos.lFactor;
+        protocol = "Curvance";
+        market = pos.marketManager;
+      }
+    }
+
+    res.json({
+      wallet,
+      healthFactor: worstHF,
+      protocol,
+      market,
+      aaveHF,
+      curvancePositions: curvancePositions.length,
+    });
+  } catch (error) {
+    console.error("Error consultando health factor:", error);
+    res.status(500).json({ error: "Error consultando la blockchain" });
+  }
 });
 
 // ===== MONITOR =====
@@ -66,19 +105,34 @@ async function checkAllWallets() {
   console.log(`\n[${timestamp}] Revisando ${users.length} wallet(s)...`);
 
   for (const user of users) {
-    const hf = await getHealthFactorNumber(user.wallet);
+    // Aave
+    const aaveHF = await getHealthFactorNumber(user.wallet);
+    // Curvance
+    const curvancePositions = await getCurvanceHealth(user.wallet);
+
+    // Determinar peor caso
+    let worstHF = aaveHF;
+    let protocol = "Aave";
+
+    for (const pos of curvancePositions) {
+      if (pos.lFactor < worstHF) {
+        worstHF = pos.lFactor;
+        protocol = "Curvance";
+      }
+    }
+
     const key = `${user.discordId}:${user.wallet}`;
 
-    if (hf < 1.5 && !alerted.has(key)) {
-      const riskLevel = hf < 1.1 ? "CRITICO" : "PRECAUCION";
+    if (worstHF < 1.5 && !alerted.has(key)) {
+      const riskLevel = worstHF < 1.1 ? "CRITICO" : "PRECAUCION";
       await sendDMToUser(
         user.discordId,
-        `⚠️ **Alerta de riesgo**\n\nWallet: \`${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}\`\nHealth Factor: **${hf.toFixed(4)}** (${riskLevel})\n\nConsidera anadir margen.`
+        `⚠️ **Alerta de riesgo**\n\nWallet: \`${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}\`\nProtocolo: **${protocol}**\nHealth Factor: **${worstHF.toFixed(4)}** (${riskLevel})\n\nConsidera anadir margen.`
       );
       alerted.add(key);
     }
 
-    if (hf > 1.8) {
+    if (worstHF > 1.8) {
       alerted.delete(key);
     }
   }
@@ -89,15 +143,12 @@ async function checkAllWallets() {
 async function main() {
   console.log("=== Mandate Risk Monitor iniciado ===");
 
-  // Arrancar API HTTP
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`API corriendo en puerto ${PORT}`);
   });
 
-  // Arrancar bot de Discord
   await startDiscordBot();
 
-  // Arrancar monitor de wallets
   await checkAllWallets();
   setInterval(checkAllWallets, CHECK_INTERVAL_MS);
 }
