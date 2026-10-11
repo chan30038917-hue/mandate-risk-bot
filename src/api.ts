@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { addWalletToUser, getUserWallets, getAllUsersWithWallets } from "./db";
 import { getHealthFactorNumber } from "./libs/aave";
+import { checkCurvancePosition } from "./libs/curvance";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,12 +10,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Health check para Railway
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "healthy" });
 });
 
-// Registrar una wallet desde la extensión
 app.post("/api/register", (req, res) => {
   const { discordId, wallet } = req.body;
 
@@ -30,19 +29,28 @@ app.post("/api/register", (req, res) => {
   res.json({ success: true, message: "Wallet registrada" });
 });
 
-// Listar wallets de un usuario
 app.get("/api/wallets/:discordId", (req, res) => {
   const wallets = getUserWallets(req.params.discordId);
   res.json({ wallets });
 });
 
-// Obtener health factor de una wallet
 app.get("/api/health-factor/:wallet", async (req, res) => {
   const hf = await getHealthFactorNumber(req.params.wallet);
-  res.json({ wallet: req.params.wallet, healthFactor: hf });
+  res.json({ wallet: req.params.wallet, healthFactor: hf, protocol: "Aave V3" });
 });
 
-// Listar todos los usuarios (para el bot)
+app.get("/api/curvance-health/:wallet", async (req, res) => {
+  const result = await checkCurvancePosition(req.params.wallet);
+  res.json({
+    wallet: req.params.wallet,
+    hasDebt: result.hasDebt,
+    debtUsd: result.debtUsd,
+    marketName: result.marketName,
+    error: result.error,
+    protocol: "Curvance"
+  });
+});
+
 app.get("/api/all-users", (req, res) => {
   const users = getAllUsersWithWallets();
   res.json({ users });
