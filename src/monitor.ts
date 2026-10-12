@@ -64,6 +64,7 @@ app.get("/api/curvance-health/:wallet", async (req, res) => {
     debtUsd: result.debtUsd,
     marketName: result.marketName,
     riskLevel: result.riskLevel,
+    ratio: result.ratio,
     error: result.error,
     protocol: "Curvance"
   });
@@ -100,13 +101,40 @@ async function checkAllWallets() {
     // === CURVANCE ===
     const curvanceResult = await checkCurvancePosition(user.wallet);
     if (curvanceResult.hasDebt && !curvanceResult.error) {
+      const risk = curvanceResult.riskLevel || 0;
       const debt = curvanceResult.debtUsd || 0;
-      if (debt > 1000 && !alertedCurvance.has(key)) {
+
+      // Solo alertar si riskLevel >= 0.25 (PRECAUCIÓN, CRÍTICO o LIQUIDACIÓN)
+      if (risk >= 0.25 && !alertedCurvance.has(key)) {
+        let emoji: string;
+        let nivel: string;
+
+        if (risk >= 1.0) {
+          emoji = "🚨";
+          nivel = "LIQUIDACION";
+        } else if (risk >= 0.75) {
+          emoji = "🚨";
+          nivel = "CRITICO";
+        } else {
+          emoji = "⚠️";
+          nivel = "PRECAUCION";
+        }
+
         await sendDMToUser(
           user.discordId,
-          `⚠️ **Alerta Curvance**\n\nWallet: \`${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}\`\nDeuda: **$${debt.toFixed(2)}**\nMercado: ${curvanceResult.marketName}\n\nConsidera anadir margen.`
+          `${emoji} **Alerta Curvance - ${nivel}**\n\n` +
+          `Wallet: \`${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}\`\n` +
+          `Deuda: **$${debt.toFixed(2)}**\n` +
+          `Mercado: ${curvanceResult.marketName}\n` +
+          `Nivel de riesgo: **${nivel}**\n\n` +
+          `Considera anadir margen.`
         );
         alertedCurvance.add(key);
+      }
+
+      // Resetear la alerta si vuelve a estar seguro (riskLevel < 0.25)
+      if (risk < 0.25) {
+        alertedCurvance.delete(key);
       }
     }
   }
