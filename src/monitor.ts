@@ -56,6 +56,23 @@ app.get("/api/health-factor/:wallet", async (req, res) => {
   res.json({ wallet: req.params.wallet, healthFactor: hf, protocol: "Aave V3" });
 });
 
+app.get("/api/curvance-health/:wallet", async (req, res) => {
+  const result = await checkCurvancePosition(req.params.wallet);
+  res.json({
+    wallet: req.params.wallet,
+    hasDebt: result.hasDebt,
+    debtUsd: result.debtUsd,
+    marketName: result.marketName,
+    error: result.error,
+    protocol: "Curvance"
+  });
+});
+
+app.get("/api/all-users", (req, res) => {
+  const users = getAllUsersWithWallets();
+  res.json({ users });
+});
+
 // ===== MONITOR =====
 async function checkAllWallets() {
   const users = getAllUsersWithWallets();
@@ -82,21 +99,13 @@ async function checkAllWallets() {
     // === CURVANCE ===
     const curvanceResult = await checkCurvancePosition(user.wallet);
     if (curvanceResult.hasDebt && !curvanceResult.error) {
-      const risk = curvanceResult.riskLevel ?? 0;
-
-      // risk > 0 significa liquidación suave, riesgo creciente
-      if (risk > 0 && !alertedCurvance.has(key)) {
-        const riskLabel = risk >= 0.99 ? "CRITICO" : "PRECAUCION";
+      const debt = curvanceResult.debtUsd || 0;
+      if (debt > 1000 && !alertedCurvance.has(key)) {
         await sendDMToUser(
           user.discordId,
-          `⚠️ **Alerta Curvance**\n\nWallet: \`${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}\`\nRiesgo: **${(risk * 100).toFixed(2)}%** (${riskLabel})\nMercado: ${curvanceResult.marketName}\nDeuda: $${curvanceResult.debtUsd}\n\nConsidera anadir margen.`
+          `⚠️ **Alerta Curvance**\n\nWallet: \`${user.wallet.slice(0, 6)}...${user.wallet.slice(-4)}\`\nDeuda: **$${debt.toFixed(2)}**\nMercado: ${curvanceResult.marketName}\n\nConsidera anadir margen.`
         );
         alertedCurvance.add(key);
-      }
-
-      // Resetear alerta si vuelve a seguro
-      if (risk === 0) {
-        alertedCurvance.delete(key);
       }
     }
   }
@@ -106,10 +115,13 @@ async function checkAllWallets() {
 // ===== MAIN =====
 async function main() {
   console.log("=== Mandate Risk Monitor iniciado ===");
+
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`API corriendo en puerto ${PORT}`);
   });
+
   await startDiscordBot();
+
   await checkAllWallets();
   setInterval(checkAllWallets, CHECK_INTERVAL_MS);
 }
