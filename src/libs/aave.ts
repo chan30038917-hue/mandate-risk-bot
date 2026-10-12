@@ -19,7 +19,7 @@ export async function checkAavePosition(
 ): Promise<AavePosition> {
   try {
     const rpcProvider = provider || new JsonRpcProvider(
-      process.env.AAVE_RPC_URL || 'https://eth.llamarpc.com'
+      process.env.AAVE_RPC_URL || 'https://ethereum-rpc.publicnode.com'
     );
 
     const pool = new Contract(AAVE_POOL_ADDRESS, AAVE_POOL_ABI, rpcProvider);
@@ -48,8 +48,7 @@ export async function checkAavePosition(
     };
   }
 }
-// ===== Compatibilidad con monitor.ts, api.ts y discord-bot.ts =====
-// Esta funcion devuelve solo el numero de health factor (o Infinity si no hay deuda)
+
 export async function getHealthFactorNumber(accountAddress: string): Promise<number> {
   const result = await checkAavePosition(accountAddress);
   if (result.error) {

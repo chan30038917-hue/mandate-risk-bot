@@ -1,13 +1,9 @@
 {
   "name": "mandate-risk-bot",
   "version": "1.0.0",
-  "description": "Bot de Discord + API HTTP para monitoreo de riesgo en Monad",
   "type": "module",
   "scripts": {
     "start": "tsx -r dotenv/config src/monitor.ts"
-  },
-  "engines": {
-    "node": ">=22.0.0"
   },
   "dependencies": {
     "axios": "^1.13.2",

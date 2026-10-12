@@ -16,15 +16,12 @@ app.get("/health", (req, res) => {
 
 app.post("/api/register", (req, res) => {
   const { discordId, wallet } = req.body;
-
   if (!discordId || !wallet) {
     return res.status(400).json({ error: "discordId y wallet son requeridos" });
   }
-
   if (!wallet.startsWith("0x") || wallet.length !== 42) {
     return res.status(400).json({ error: "Direccion invalida" });
   }
-
   addWalletToUser(discordId, wallet);
   res.json({ success: true, message: "Wallet registrada" });
 });
