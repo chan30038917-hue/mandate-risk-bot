@@ -63,6 +63,7 @@ app.get("/api/curvance-health/:wallet", async (req, res) => {
     hasDebt: result.hasDebt,
     debtUsd: result.debtUsd,
     marketName: result.marketName,
+    riskLevel: result.riskLevel,
     error: result.error,
     protocol: "Curvance"
   });
@@ -120,7 +121,11 @@ async function main() {
     console.log(`API corriendo en puerto ${PORT}`);
   });
 
-  await startDiscordBot();
+  try {
+    await startDiscordBot();
+  } catch (error) {
+    console.error("Discord fallo, pero el API sigue corriendo:", error);
+  }
 
   await checkAllWallets();
   setInterval(checkAllWallets, CHECK_INTERVAL_MS);

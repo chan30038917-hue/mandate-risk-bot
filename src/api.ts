@@ -43,6 +43,7 @@ app.get("/api/curvance-health/:wallet", async (req, res) => {
     hasDebt: result.hasDebt,
     debtUsd: result.debtUsd,
     marketName: result.marketName,
+    riskLevel: result.riskLevel,
     error: result.error,
     protocol: "Curvance"
   });
