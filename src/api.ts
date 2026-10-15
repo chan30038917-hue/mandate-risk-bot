@@ -3,12 +3,19 @@ import cors from "cors";
 import { addWalletToUser, getUserWallets, getAllUsersWithWallets } from "./db";
 import { getHealthFactorNumber } from "./libs/aave";
 import { checkCurvancePosition } from "./libs/curvance";
+import DodoPayments from "dodopayments";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// ─── Dodo Payments ───
+const dodo = new DodoPayments({
+  bearerToken: process.env.DODO_PAYMENTS_API_KEY || "",
+  environment: (process.env.DODO_ENVIRONMENT as "live_mode" | "test_mode") || "live_mode",
+});
 
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "healthy" });
@@ -52,6 +59,30 @@ app.get("/api/curvance-health/:wallet", async (req, res) => {
 app.get("/api/all-users", (req, res) => {
   const users = getAllUsersWithWallets();
   res.json({ users });
+});
+
+app.post("/api/create-checkout", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const session = await dodo.checkoutSessions.create({
+      product_cart: [
+        {
+          product_id: "pdt_0NpndMqzbLZS4SMoC433b",
+          quantity: 1,
+        },
+      ],
+      customer: {
+        email: email || "customer@example.com",
+      },
+      return_url: "https://github.com/chan30038917-hue/mandate-risk-extension",
+    });
+
+    res.json({ checkout_url: session.checkout_url });
+  } catch (error) {
+    console.error("Error creando checkout de Dodo:", error);
+    res.status(500).json({ error: "Error creando checkout" });
+  }
 });
 
 app.listen(PORT, "0.0.0.0", () => {
