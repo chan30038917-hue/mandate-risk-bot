@@ -102,7 +102,10 @@ app.post("/api/create-checkout", async (req, res) => {
     res.json({ checkout_url: session.checkout_url });
   } catch (error) {
     console.error("Error creando checkout de Dodo:", error);
-    res.status(500).json({ error: "Error creando checkout" });
+    res.status(500).json({ 
+      error: "Error creando checkout",
+      detail: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 
