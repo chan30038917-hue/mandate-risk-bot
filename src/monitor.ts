@@ -109,25 +109,70 @@ app.post("/api/create-checkout", async (req, res) => {
   }
 });
 
-// ─── Lemon Squeezy: Validación de licencias ───
+
+// ─── Lemon Squeezy: Activación y validación de licencias ───
 app.post("/api/validate-license", async (req, res) => {
   const { licenseKey } = req.body;
   if (!licenseKey) {
     return res.status(400).json({ valid: false, error: "Falta la licencia" });
   }
 
+  const apiKey = process.env.LEMON_API_KEY || "";
+  if (!apiKey) {
+    return res.status(500).json({ valid: false, error: "LEMON_API_KEY no configurada" });
+  }
+
   try {
-    const response = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
+    let response = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
       method: "POST",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Bearer ${process.env.LEMON_API_KEY || ""}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: new URLSearchParams({ license_key: licenseKey }),
     });
 
-    const data = await response.json();
+    let data = await response.json();
+
+    if (data.valid === true && data.license_key?.status === "inactive") {
+      console.log(`[Lemon] Licencia inactiva, activando: ${licenseKey}`);
+      const activateResponse = await fetch("https://api.lemonsqueezy.com/v1/licenses/activate", {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: new URLSearchParams({
+          license_key: licenseKey,
+          instance_name: "mandate-risk-extension",
+        }),
+      });
+
+      const activateData = await activateResponse.json();
+
+      if (activateData.activated === true) {
+        response = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
+          method: "POST",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: new URLSearchParams({ license_key: licenseKey }),
+        });
+        data = await response.json();
+      } else {
+        console.error("[Lemon] Error activando licencia:", activateData);
+        return res.status(400).json({
+          valid: false,
+          status: "activation_failed",
+          error: activateData.error || "No se pudo activar la licencia",
+        });
+      }
+    }
+
     const isValid = data.valid === true && data.license_key?.status === "active";
 
     res.json({
