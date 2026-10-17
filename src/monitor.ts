@@ -109,6 +109,37 @@ app.post("/api/create-checkout", async (req, res) => {
   }
 });
 
+// ─── Lemon Squeezy: Validación de licencias ───
+app.post("/api/validate-license", async (req, res) => {
+  const { licenseKey } = req.body;
+  if (!licenseKey) {
+    return res.status(400).json({ valid: false, error: "Falta la licencia" });
+  }
+
+  try {
+    const response = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Bearer ${process.env.LEMON_API_KEY || ""}`,
+      },
+      body: new URLSearchParams({ license_key: licenseKey }),
+    });
+
+    const data = await response.json();
+    const isValid = data.valid === true && data.license_key?.status === "active";
+
+    res.json({
+      valid: isValid,
+      status: data.license_key?.status || "unknown",
+    });
+  } catch (error) {
+    console.error("Error validando licencia de Lemon:", error);
+    res.status(500).json({ valid: false, error: "Error de red" });
+  }
+});
+
 // ===== MONITOR =====
 async function checkAllWallets() {
   const users = getAllUsersWithWallets();
