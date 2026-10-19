@@ -1,7 +1,7 @@
 // src/libs/aave.ts
 import { JsonRpcProvider, Contract } from 'ethers';
 
-const AAVE_POOL_ADDRESS = '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2';
+const AAVE_POOL_ADDRESS = '0x69a5f9ad4f96ebf0a0c792dd42a01cc5c0102fef';
 const AAVE_POOL_ABI = [
   'function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)',
 ];
@@ -19,7 +19,7 @@ export async function checkAavePosition(
 ): Promise<AavePosition> {
   try {
     const rpcProvider = provider || new JsonRpcProvider(
-      process.env.AAVE_RPC_URL || 'https://ethereum-rpc.publicnode.com'
+      process.env.AAVE_RPC_URL || 'https://rpc.monad.xyz'
     );
 
     const pool = new Contract(AAVE_POOL_ADDRESS, AAVE_POOL_ABI, rpcProvider);
