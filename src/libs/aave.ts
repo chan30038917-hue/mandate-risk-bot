@@ -3,7 +3,7 @@ import { JsonRpcProvider, Contract } from 'ethers';
 
 const AAVE_POOL_ADDRESS = '0x69a5f9ad4f96ebf0a0c792dd42a01cc5c0102fef';
 const AAVE_POOL_ABI = [
-  'function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)',
+  'function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)'
 ];
 
 export interface AavePosition {
@@ -28,35 +28,43 @@ export async function checkAavePosition(
     const totalDebtBase = BigInt(data[1]);
     const healthFactorRaw = BigInt(data[5]);
 
+    // Si no hay deuda, el health factor es "sin deuda"
     if (totalDebtBase === 0n) {
-      return { hasDebt: false };
+      return {
+        hasDebt: false,
+        healthFactor: 999,
+        totalDebtUsd: 0,
+      };
     }
 
-    const healthFactor = healthFactorRaw === BigInt('0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff')
-      ? null
-      : Number(healthFactorRaw) / 1e18;
+    // Si hay deuda, procesar el health factor normalmente
+    const healthFactor = Number(healthFactorRaw) / 1e18;
 
     return {
       hasDebt: true,
       healthFactor,
-      totalDebtUsd: Number(totalDebtBase) / 1e8,
+      totalDebtUsd: Number(totalDebtBase) / 1e8, // Aave usa 8 decimales para USD
     };
-  } catch (error: any) {
+  } catch (error) {
     return {
       hasDebt: false,
-      error: error.message || 'Error desconocido en Aave',
+      healthFactor: null,
+      error: error instanceof Error ? error.message : String(error),
     };
   }
 }
 
-export async function getHealthFactorNumber(accountAddress: string): Promise<number> {
-  const result = await checkAavePosition(accountAddress);
-  if (result.error) {
-    console.error(`[Aave] Error obteniendo HF de ${accountAddress}: ${result.error}`);
-    return Infinity;
+export async function getHealthFactorNumber(
+  wallet: string,
+  provider?: JsonRpcProvider
+): Promise<number> {
+  const position = await checkAavePosition(wallet, provider);
+  if (position.error) {
+    console.error(`Error consultando Aave para ${wallet}:`, position.error);
+    return 999;
   }
-  if (!result.hasDebt || result.healthFactor === null || result.healthFactor === undefined) {
-    return Infinity;
+  if (position.healthFactor === null || position.healthFactor === undefined) {
+    return 999;
   }
-  return result.healthFactor;
+  return position.healthFactor;
 }
