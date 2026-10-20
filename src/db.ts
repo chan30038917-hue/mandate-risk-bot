@@ -3,7 +3,7 @@ import { mkdirSync } from "fs";
 import { dirname } from "path";
 
 // Crear la carpeta data/ si no existe
-const DB_PATH = "./data/bot.db";
+const DB_PATH = process.env.DB_PATH || "/app/data/bot.db";
 mkdirSync(dirname(DB_PATH), { recursive: true });
 
 const db = new Database(DB_PATH);
