@@ -117,70 +117,23 @@ app.post("/api/validate-license", async (req, res) => {
     return res.status(400).json({ valid: false, error: "Falta la licencia" });
   }
 
-  const apiKey = process.env.LEMON_API_KEY || "";
-  if (!apiKey) {
-    return res.status(500).json({ valid: false, error: "LEMON_API_KEY no configurada" });
-  }
-
   try {
-    let response = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
+    // Dodo Payments no requiere API Key para validar licencias.
+    // Usamos el endpoint de live_mode. Si estás probando, cambia a test.dodopayments.com
+    const response = await fetch("https://live.dodopayments.com/licenses/validate", {
       method: "POST",
       headers: {
-        Accept: "application/json",
-        "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
-      body: new URLSearchParams({ license_key: licenseKey }),
+      body: JSON.stringify({ license_key: licenseKey }),
     });
 
-    let data = await response.json();
-
-    if (data.valid === true && data.license_key?.status === "inactive") {
-      console.log(`[Lemon] Licencia inactiva, activando: ${licenseKey}`);
-      const activateResponse = await fetch("https://api.lemonsqueezy.com/v1/licenses/activate", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/x-www-form-urlencoded",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: new URLSearchParams({
-          license_key: licenseKey,
-          instance_name: "mandate-risk-extension",
-        }),
-      });
-
-      const activateData = await activateResponse.json();
-
-      if (activateData.activated === true) {
-        response = await fetch("https://api.lemonsqueezy.com/v1/licenses/validate", {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/x-www-form-urlencoded",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: new URLSearchParams({ license_key: licenseKey }),
-        });
-        data = await response.json();
-      } else {
-        console.error("[Lemon] Error activando licencia:", activateData);
-        return res.status(400).json({
-          valid: false,
-          status: "activation_failed",
-          error: activateData.error || "No se pudo activar la licencia",
-        });
-      }
-    }
-
-    const isValid = data.valid === true && data.license_key?.status === "active";
-
-    res.json({
-      valid: isValid,
-      status: data.license_key?.status || "unknown",
-    });
+    const data = await response.json();
+    
+    // Dodo devuelve { valid: true } si la licencia es correcta
+    res.json({ valid: data.valid === true });
   } catch (error) {
-    console.error("Error validando licencia de Lemon:", error);
+    console.error("Error validando licencia de Dodo:", error);
     res.status(500).json({ valid: false, error: "Error de red" });
   }
 });
