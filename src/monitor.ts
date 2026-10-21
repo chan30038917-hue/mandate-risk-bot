@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import { getHealthFactorNumber } from "./libs/aave";
 import { checkCurvancePosition } from "./libs/curvance";
-import { getAllUsersWithWallets, addWalletToUser, getUserWallets, removeWallet } from "./db";
+import { getAllUsersWithWallets, addWalletToUser, getUserWallets, removeWallet, getTrialStart, setTrialStart } from "./db";
 import { startDiscordBot, sendDMToUser } from "./discord-bot";
 import DodoPayments from "dodopayments";
 
@@ -41,6 +41,11 @@ app.post("/api/register", (req, res) => {
     return res.status(400).json({ error: "Direccion invalida" });
   }
   addWalletToUser(discordId, wallet);
+  const existingTrial = getTrialStart(discordId);
+  if (!existingTrial) {
+    setTrialStart(discordId, Date.now());
+    console.log(`[Trial] Iniciado para Discord ID ${discordId}`);
+  }
   res.json({ success: true, message: "Wallet registrada" });
 });
 
@@ -75,6 +80,17 @@ app.get("/api/curvance-health/:wallet", async (req, res) => {
     error: result.error,
     protocol: "Curvance"
   });
+});
+
+app.get("/api/trial-status/:discordId", (req, res) => {
+  const discordId = req.params.discordId;
+  const startedAt = getTrialStart(discordId);
+  if (!startedAt) {
+    return res.json({ hasTrial: false, daysLeft: 30 });
+  }
+  const daysPassed = (Date.now() - startedAt) / (1000 * 60 * 60 * 24);
+  const daysLeft = Math.max(0, Math.ceil(30 - daysPassed));
+  res.json({ hasTrial: daysLeft > 0, daysLeft, startedAt });
 });
 
 app.get("/api/all-users", (req, res) => {

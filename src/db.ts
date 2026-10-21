@@ -10,6 +10,13 @@ const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS trials (
+    discord_id TEXT PRIMARY KEY,
+    started_at INTEGER NOT NULL
+  )
+`);
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     discord_id TEXT NOT NULL,
     wallet TEXT NOT NULL,
@@ -35,4 +42,14 @@ export function getAllUsersWithWallets(): { discordId: string; wallet: string }[
 
 export function removeWallet(discordId: string, wallet: string) {
   db.prepare("DELETE FROM users WHERE discord_id = ? AND wallet = ?").run(discordId, wallet);
+}
+
+
+export function getTrialStart(discordId: string): number | null {
+  const row = db.prepare("SELECT started_at FROM trials WHERE discord_id = ?").get(discordId) as { started_at: number } | undefined;
+  return row ? row.started_at : null;
+}
+
+export function setTrialStart(discordId: string, startedAt: number) {
+  db.prepare("INSERT OR IGNORE INTO trials (discord_id, started_at) VALUES (?, ?)").run(discordId, startedAt);
 }
