@@ -121,19 +121,41 @@ app.post("/api/validate-license", async (req, res) => {
   }
 
   try {
-    // Dodo Payments no requiere API Key para validar licencias.
-    // Usamos el endpoint de live_mode. Si estás probando, cambia a test.dodopayments.com
-    const response = await fetch("https://live.dodopayments.com/licenses/validate", {
+    // 1. Intentar validar primero
+    let response = await fetch("https://live.dodopayments.com/licenses/validate", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ license_key: licenseKey }),
     });
+    let data = await response.json();
 
-    const data = await response.json();
-    
-    // Dodo devuelve { valid: true } si la licencia es correcta
+    // 2. Si no es válida, intentar activarla (por si tiene límite de activaciones)
+    if (!data.valid) {
+      console.log(`[Dodo] Licencia no válida, intentando activar: ${licenseKey}`);
+      const activateResponse = await fetch("https://live.dodopayments.com/licenses/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          license_key: licenseKey,
+          name: "Mandate Risk Monitor Extension",
+        }),
+      });
+      const activateData = await activateResponse.json();
+
+      if (activateData.id) {
+        // 3. Volver a validar después de activar
+        response = await fetch("https://live.dodopayments.com/licenses/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ license_key: licenseKey }),
+        });
+        data = await response.json();
+      } else {
+        console.error("[Dodo] Error activando:", activateData);
+        return res.status(400).json({ valid: false, error: "No se pudo activar la licencia" });
+      }
+    }
+
     res.json({ valid: data.valid === true });
   } catch (error) {
     console.error("Error validando licencia de Dodo:", error);
