@@ -96,6 +96,9 @@ app.post("/api/create-checkout", async (req, res) => {
       customer: {
         email: email || "customer@example.com",
       },
+      feature_flags: {
+        allow_customer_editing_email: true,
+      },
       return_url: "https://github.com/chan30038917-hue/mandate-risk-extension",
     });
 
